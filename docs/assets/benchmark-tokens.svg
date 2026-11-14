@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1032 510" width="1032" height="510" role="img" aria-labelledby="title description">
+  <title id="title">skel-mcp token usage in Codex CLI</title>
+  <desc id="description">Six separate tasks used 212,180 tokens without MCP and 149,252 tokens with skel-mcp, a reduction of 29.7 percent. The same tasks in one batch used 41,966 tokens without MCP and 26,216 with skel-mcp, a reduction of 37.5 percent. One paired trial per scenario used direct tool routing. Both scenarios share the same linear scale.</desc>
+  <rect width="1032" height="510" rx="20" fill="#ffffff"/>
+  <rect x="1" y="1" width="1030" height="508" rx="19" fill="none" stroke="#dbe6ee" stroke-width="2"/>
+  <g font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+    <text x="42" y="55" fill="#10273b" font-size="31" font-weight="700">Token usage with skel-mcp</text>
+    <text x="42" y="86" fill="#425b6d" font-size="17">Codex CLI benchmark · total input and output tokens</text>
+
+    <g font-size="15" fill="#30495b">
+      <rect x="42" y="109" width="16" height="16" rx="3" fill="#7d91a4"/>
+      <text x="67" y="122">Without MCP</text>
+      <rect x="201" y="109" width="16" height="16" rx="3" fill="#00795d"/>
+      <text x="226" y="122">With skel-mcp</text>
+    </g>
+
+    <g stroke="#e0e9ef" stroke-width="1">
+      <path d="M226 168V414 M365 168V414 M504 168V414 M643 168V414 M782 168V414"/>
+    </g>
+    <path d="M226 414H851" stroke="#b7c8d5"/>
+
+    <g font-size="17" font-weight="650" fill="#10273b">
+      <text x="42" y="209">Six separate tasks</text>
+      <text x="42" y="346">One batch</text>
+    </g>
+    <g font-size="15" font-weight="700" fill="#00644d">
+      <text x="42" y="232">29.7% fewer tokens</text>
+      <text x="42" y="369">37.5% fewer tokens</text>
+    </g>
+
+    <rect x="226" y="180" width="589.86" height="29" rx="4" fill="#7d91a4"/>
+    <rect x="226" y="222" width="414.92" height="29" rx="4" fill="#00795d"/>
+    <rect x="226" y="317" width="116.67" height="29" rx="4" fill="#7d91a4"/>
+    <rect x="226" y="359" width="72.88" height="29" rx="4" fill="#00795d"/>
+    <g font-size="16" font-weight="650" font-variant-numeric="tabular-nums" fill="#10273b">
+      <text x="829" y="200">212,180</text>
+      <text x="654" y="242">149,252</text>
+      <text x="356" y="337">41,966</text>
+      <text x="312" y="379">26,216</text>
+    </g>
+
+    <g text-anchor="middle" font-size="14" fill="#425b6d">
+      <text x="226" y="439">0</text>
+      <text x="365" y="439">50k</text>
+      <text x="504" y="439">100k</text>
+      <text x="643" y="439">150k</text>
+      <text x="782" y="439">200k</text>
+    </g>
+    <text x="42" y="483" font-size="15" fill="#425b6d">One paired run per scenario · direct MCP tool routing · all reference answers matched</text>
+  </g>
+</svg>

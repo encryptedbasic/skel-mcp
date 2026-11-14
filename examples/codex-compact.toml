@@ -1,0 +1,10 @@
+# Replace cwd with the absolute path of the repository to analyze.
+# The package-name launcher is for the npm release. See the README for local archives.
+[mcp_servers.skel]
+command = "npx"
+args = ["--yes", "skel-mcp@0.2.0"]
+cwd = "/absolute/path/to/project"
+
+# Optional. Verified with Codex CLI 0.167.0-alpha.4.1.
+[features.code_mode]
+direct_only_tool_namespaces = ["mcp__skel"]

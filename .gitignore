@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.tgz
+coverage/
+.env
+.env.*
+.npmrc
+*.pem
+*.key
+benchmarks/runs/
+benchmarks/results/pilot*/
+benchmarks/results/direct-pilot/
+benchmarks/results/*/*.jsonl
+benchmarks/results/*/*.log
+benchmarks/results/*/*.prompt.txt
+benchmarks/results/*/results.json

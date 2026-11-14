@@ -1,0 +1,62 @@
+{
+  "name": "skel-mcp",
+  "version": "0.2.0",
+  "description": "Local MCP server for focused code context, linked types, and AST-aware Git diffs.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/encryptedbasic/skel-mcp.git"
+  },
+  "homepage": "https://github.com/encryptedbasic/skel-mcp#readme",
+  "bugs": "https://github.com/encryptedbasic/skel-mcp/issues",
+  "type": "module",
+  "bin": {
+    "skel-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "examples",
+    "benchmarks/README.md",
+    "benchmarks/results/latest/report.md",
+    "benchmarks/results/optimized/report.md",
+    "benchmarks/results/optimized-batch/report.md",
+    "benchmarks/results/payload/report.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "start:compact": "node dist/index.js --compact",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json && node scripts/test.mjs",
+    "benchmark": "tsc -p tsconfig.json && tsx benchmarks/run.ts",
+    "benchmark:optimized": "tsc -p tsconfig.json && tsx benchmarks/run.ts --direct",
+    "benchmark:payload": "tsc -p tsconfig.json && tsx benchmarks/payload.ts",
+    "prepack": "tsc -p tsconfig.json"
+  },
+  "keywords": [
+    "mcp",
+    "tree-sitter",
+    "ast",
+    "ai",
+    "context"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "gpt-tokenizer": "4.1.2",
+    "tree-sitter-wasms": "0.1.13",
+    "web-tree-sitter": "0.24.7",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
