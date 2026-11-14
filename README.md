@@ -13,7 +13,7 @@
 
 ![Codex CLI benchmark token totals](docs/assets/benchmark-tokens.svg)
 
-Each row records one paired run with matching prompts and verified answers. The MCP runs used compact responses and Codex's direct MCP tool configuration. For file tasks the baseline read full files, and for Git tasks it ran `git diff`. Both sides of the batch test retrieved context in one call. Token counts include the agent's input and output. Savings vary by client and task. [Six-task report](benchmarks/results/optimized/report.md) · [Batch report](benchmarks/results/optimized-batch/report.md) · [Methodology](benchmarks/README.md)
+Each row records one paired run with matching prompts and verified answers. The MCP runs used compact responses and Codex's direct MCP tool configuration. The baseline read full files for file tasks and ran `git diff` for Git tasks. Both sides of the batch test retrieved context in one call. Counts include agent input and output tokens. Savings vary by client and task. [Six-task report](benchmarks/results/optimized/report.md) · [Batch report](benchmarks/results/optimized-batch/report.md)
 
 ## Quick start
 
@@ -23,7 +23,7 @@ Use Node.js 20 or newer. Git operations require `git` on your `PATH`. Start the 
 npx --yes skel-mcp@0.2.0
 ```
 
-The npm command requires the release to be in the registry. For a local build, run `npm install` and `npm pack` in the skel-mcp checkout, then launch the archive from your project:
+The npm command requires the release to be in the registry. To build from source, run `npm install` followed by `npm pack` in the skel-mcp checkout. Launch the resulting archive from your project.
 
 ```sh
 npx --yes --package="/absolute/path/skel-mcp-0.2.0.tgz" skel-mcp
@@ -37,7 +37,7 @@ For a local archive, replace the `npx` arguments below with `["--yes", "--packag
 
 ### Claude Code
 
-Run this command from your project directory:
+Run this command from your project directory.
 
 ```sh
 claude mcp add --transport stdio skel -- npx --yes skel-mcp@0.2.0
@@ -47,7 +47,7 @@ To share the configuration with your project, put the server in the root `.mcp.j
 
 ### Cursor
 
-Save this in the project's `.cursor/mcp.json`:
+Save this in the project's `.cursor/mcp.json`.
 
 ```json
 {
@@ -68,7 +68,7 @@ Save this in the project's `.cursor/mcp.json`:
 
 ### Codex
 
-Add this server to `.codex/config.toml` and replace `cwd` with the absolute path to your project:
+Add this server to `.codex/config.toml` and replace `cwd` with the absolute path to your project.
 
 ```toml
 [mcp_servers.skel]
@@ -77,7 +77,12 @@ args = ["--yes", "skel-mcp@0.2.0"]
 cwd = "/absolute/path/to/project"
 ```
 
-The benchmark used the optional direct-tool setting in the [example Codex configuration](examples/codex-compact.toml). [Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+To use the optional direct-tool setting from the benchmark, add this to the Codex configuration. The namespace matches the server name `skel`. Support can vary by Codex version. [Codex MCP documentation](https://learn.chatgpt.com/docs/extend/mcp?surface=cli)
+
+```toml
+[features.code_mode]
+direct_only_tool_namespaces = ["mcp__skel"]
+```
 
 ### VS Code and other stdio clients
 
@@ -101,21 +106,22 @@ If a Windows client cannot launch `npx` directly, use `"command": "cmd.exe"` wit
 
 | Operation | Returns |
 | --- | --- |
-| `outline` | Signatures and type declarations. Use `detail: "names"` for a shorter list of names. |
-| `symbol` | A complete symbol body with related types and imports. |
-| `lines` | Line-numbered excerpts around a literal `find` match within a symbol. |
-| `diff` | Changed lines labeled by their enclosing AST symbols. Use `detail: "full"` for complete affected bodies. |
+| `outline` | Signatures and type declarations. To focus the response, pass a `symbol`, set `detail: "names"`, or use `publicOnly: true`. Pass `imports: "all"` to include imports. |
+| `symbol` | A complete symbol body with related types and imports. Set `includeTypes: false` to omit related declarations. Use `imports: "all"` for every import from the requested file or `"none"` to omit imports. |
+| `lines` | Line-numbered excerpts around literal `find` matches within the requested `symbol`. |
+| `diff` | Unstaged changes to tracked files, labeled by their enclosing AST symbols. Use `detail: "full"` for complete affected bodies. |
 
-Pages default to 1,200 tokens as counted by `o200k_base`. If the response ends with `[truncated next=…]`, repeat the request with that value as `cursor`. Set `maxTokens` to change the page size or pass `null` to retrieve the entire remaining result.
+Set the project root through `SKEL_MCP_ROOT`, Claude Code's `CLAUDE_PROJECT_DIR`, or the launcher's working directory, in that order. The server resolves related declarations in the requested file and follows one hop of unambiguous relative ESM imports for TypeScript and JavaScript. Python and Go resolve declarations in the requested file. External packages, ambiguous paths, and further dependencies appear as imports.
 
-Add `--legacy` to the server arguments to use `get_file_skeleton`, `get_symbol`, and `get_smart_diff` with their original parameters. `--compact` is an alias for the default mode. [Tool reference and type-resolution scope](docs/compact.md)
+Pages default to 1,200 tokens counted with `o200k_base`. If a page ends with `[truncated next=…]`, repeat the same `requests` and `versions` with that value as `cursor`. Set `maxTokens` to a safe integer of at least 128 or pass `null` for the entire remaining result. Use `versions: true` to receive a content hash. Pass it as `ifHash` to skip unchanged content you already have.
+
+Add `--legacy` to the server arguments to use `get_file_skeleton`, `get_symbol`, and `get_smart_diff` with their original parameters. `--compact` is an alias for the default mode.
 
 ## Development
 
 ```sh
 npm install
 npm run build
-npm test
 ```
 
-[Benchmark commands and fixtures](benchmarks/README.md) · [MIT license](LICENSE)
+[MIT license](LICENSE)

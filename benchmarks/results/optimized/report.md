@@ -19,4 +19,4 @@ The run used **212,180 tokens without MCP** and **149,252 with skel-mcp**, a red
 | Without MCP | 211,486 | 152,832 | 694 | 212,180 |
 | With skel-mcp | 148,784 | 89,344 | 468 | 149,252 |
 
-The baseline used full-file reads and plain `git diff`. The combined effect of compact answers and direct client tool calls is reflected in the reported agent usage. Results can vary with tasks, client behavior, and caching. [Methodology](../../README.md)
+The baseline used full-file reads and plain `git diff`. The combined effect of compact answers and direct client tool calls is reflected in the reported agent usage. Results can vary with tasks, client behavior, and caching. [Methodology](../../../README.md#token-savings)

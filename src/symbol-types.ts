@@ -1,7 +1,8 @@
-import { realpath, stat } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type Parser from 'web-tree-sitter';
 import type { ParsedFile } from './parser.js';
+import { resolveWorkspaceFile } from './source-files.js';
 
 type Node = Parser.SyntaxNode;
 type Language = ParsedFile['language'];
@@ -345,8 +346,8 @@ async function resolveRelativeTypeFile(from: string, specifier: string, root: st
   const existing = new Set<string>();
   for (const candidate of candidates) {
     try {
-      const absolute = await realpath(candidate);
-      if (within(root, absolute) && (await stat(absolute)).isFile()) existing.add(absolute);
+      const absolute = await resolveWorkspaceFile(candidate, root);
+      if (within(root, absolute)) existing.add(absolute);
     } catch {
       // A relative import can refer to generated or unavailable source.
     }

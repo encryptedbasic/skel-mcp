@@ -9,4 +9,4 @@ The run used **41,966 tokens without MCP** and **26,216 with skel-mcp**, a reduc
 | Without MCP | 41,795 | 24,960 | 171 | 41,966 |
 | With skel-mcp | 26,024 | 12,672 | 192 | 26,216 |
 
-This measures the whole agent turn, including tool overhead and runtime context. Results can vary with tasks, client behavior, and caching. [Methodology](../../README.md)
+This measures the whole agent turn, including tool overhead and runtime context. Results can vary with tasks, client behavior, and caching. [Methodology](../../../README.md#token-savings)
