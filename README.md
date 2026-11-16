@@ -4,6 +4,8 @@
 
 `skel-mcp` is a local Model Context Protocol server for TypeScript, JavaScript, Python, and Go. One call can retrieve signatures, complete symbol bodies, related types and imports, or the changed lines in a Git working tree. The server uses bundled Tree-sitter grammars and caches syntax trees by file content.
 
+[Connect your client](#connect-a-client) · [Release v0.3.1](https://github.com/encryptedbasic/skel-mcp/releases/tag/v0.3.1) · [Token savings](#token-savings)
+
 ## Token savings
 
 | Codex benchmark with skel-mcp 0.2.0 | Without MCP | With skel-mcp | Fewer tokens |
@@ -23,10 +25,10 @@ Use Node.js 20 or newer. Git operations require `git` on your `PATH`. Start the 
 npx --yes skel-mcp@0.3.1
 ```
 
-The npm command requires the release to be in the registry. To build from source, run `npm install` followed by `npm pack` in the skel-mcp checkout. Launch the resulting archive from your project.
+You can also launch the package directly from the GitHub release.
 
 ```sh
-npx --yes --package="/absolute/path/skel-mcp-0.3.1.tgz" skel-mcp
+npx --yes --package=https://github.com/encryptedbasic/skel-mcp/releases/download/v0.3.1/skel-mcp-0.3.1.tgz skel-mcp
 ```
 
 The first launch may download dependencies. The server waits for MCP requests on stdin and sends protocol messages on stdout.
@@ -114,6 +116,20 @@ If a Windows client cannot launch `npx` directly, use `"command": "cmd.exe"` wit
 
 Use `detail: "returns"` to extract exact source text for a function or method's returns. It skips nested callables and omits branch conditions, local declarations and other context surrounding the returns. Fetch the full symbol when you need to determine which branch runs, evaluate a return value, or make an edit.
 
+When the same symbol occurs in multiple files, request both by path and enable source labels.
+
+```json
+{
+  "sources": true,
+  "requests": [
+    { "op": "symbol", "file": "src/checkout/quote.ts", "symbol": "buildQuote", "detail": "returns" },
+    { "op": "symbol", "file": "src/legacy/quote.ts", "symbol": "buildQuote", "detail": "returns" }
+  ]
+}
+```
+
+The results begin with `[0] src/checkout/quote.ts#buildQuote` and `[1] src/legacy/quote.ts#buildQuote`.
+
 Set the project root through `SKEL_MCP_ROOT`, Claude Code's `CLAUDE_PROJECT_DIR`, or the launcher's working directory, in that order. The server resolves related declarations in the requested file and follows one hop of unambiguous relative ESM imports for TypeScript and JavaScript. Python and Go resolve declarations in the requested file. External packages, ambiguous paths, and further dependencies appear as imports.
 
 Pages default to 1,200 tokens counted with `o200k_base`. If a page ends with `[truncated next=…]`, repeat the request with the same `file`, `requests`, `versions` and `sources` and pass the continuation value as `cursor`. Set `maxTokens` to a safe integer of at least 128 or pass `null` for the entire remaining result. Use `versions: true` to receive a content hash. Pass it as `ifHash` to skip unchanged content you already have.
@@ -126,5 +142,7 @@ Add `--legacy` to the server arguments to use `get_file_skeleton`, `get_symbol`,
 npm install
 npm run build
 ```
+
+Run `npm pack` to build a local archive. Start it from your project with `npx --yes --package="/absolute/path/skel-mcp-0.3.1.tgz" skel-mcp`.
 
 [MIT license](LICENSE)
