@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { extname, resolve } from 'node:path';
 import Parser from 'web-tree-sitter';
 import { ParseCache } from './cache.js';
-import { linkedTypeContext } from './symbol-types.js';
+import { linkedTypeContext, pythonTypeReferenceNames } from './symbol-types.js';
 import { readSourceFile } from './source-files.js';
 
 type LanguageName = 'typescript' | 'tsx' | 'javascript' | 'python' | 'go';
@@ -36,6 +36,7 @@ export interface SkeletonOptions {
 export interface SymbolOptions {
   imports?: 'all' | 'referenced' | 'none';
   includeTypes?: boolean;
+  root?: string;
 }
 
 export interface SymbolSnippetOptions {
@@ -203,9 +204,15 @@ function selectedImports(parsed: ParsedFile, nodes: Node[], policy: SymbolOption
   if (policy === 'none') return [];
   if (policy !== 'referenced') return imports(parsed);
   const used = new Set<string>();
-  for (const root of nodes) walk(root, (node) => {
-    if (node.type.endsWith('identifier')) used.add(node.text);
-  });
+  for (const root of nodes) {
+    walk(root, (node) => {
+      if (node.type.endsWith('identifier')) used.add(node.text);
+    });
+    // Python forward references can name an imported type only inside a string.
+    if (parsed.language === 'python') {
+      for (const name of pythonTypeReferenceNames(root)) used.add(name);
+    }
+  }
   return parsed.tree.rootNode.namedChildren.filter(isImport).filter((node) => {
     const bindings = importBindings(node, parsed.language);
     return bindings === undefined || bindings.some((binding) => used.has(binding));
@@ -441,10 +448,34 @@ export async function getSymbol(filePath: string, symbolName: string, options: S
     render: skeletonText,
     imports: (source, declarations, dependency) => selectedImports(source, declarations,
       dependency && options.imports !== 'none' ? 'referenced' : options.imports),
-  }) : undefined;
+  }, options.root) : undefined;
   const imported = related?.imports ?? selectedImports(parsed, nodes, options.imports);
   const chunks = [...imported, ...(related?.declarations ?? []), ...symbols];
   return [...new Set(chunks)].join('\n\n');
+}
+
+/** Return only a callable's explicit return statements or arrow expression. */
+export async function getSymbolReturns(filePath: string, symbolName: string): Promise<string> {
+  const parsed = await parseFile(filePath);
+  const matches = matchingDefinitions(parsed, symbolName).filter((definition) => definition.kind !== 'class');
+  if (!matches.length) throw new Error(`Expected a function or method for ${JSON.stringify(symbolName)}.`);
+
+  return matches.map(({ node, qualifiedName }) => {
+    const body = node.childForFieldName('body');
+    const returns: string[] = [];
+    if (body && node.type === 'arrow_function' && body.type !== 'statement_block') {
+      returns.push(body.text);
+    } else if (body) {
+      walk(body, (child) => {
+        if (functionKinds.has(child.type) || child.type === 'func_literal' || classKinds.has(child.type)) return false;
+        if (child.type !== 'return_statement') return;
+        returns.push(child.text);
+        return false;
+      });
+    }
+    const text = returns.join('\n') || 'No explicit returns.';
+    return matches.length === 1 ? text : `${qualifiedName} (line ${node.startPosition.row + 1})\n${text}`;
+  }).join('\n\n');
 }
 
 /** A deliberately partial, line-numbered view inside an AST-resolved symbol. */
@@ -494,9 +525,10 @@ function endLine(node: Node): number {
 }
 
 /** Outermost affected definitions avoid repeating methods already included in a class. */
-export function getEnclosingSymbols(parsed: ParsedFile, ranges: LineRange[]): ExtractedSymbol[] {
-  const affected = definitions(parsed).filter(({ displayNode: node }) => ranges.some((range) =>
-    range.startLine <= endLine(node) && range.endLine >= node.startPosition.row + 1));
+export function getEnclosingSymbols(parsed: ParsedFile, ranges: LineRange[], symbolName?: string): ExtractedSymbol[] {
+  const affected = definitions(parsed).filter(({ displayNode: node, name, qualifiedName }) =>
+    (symbolName === undefined || name === symbolName || qualifiedName === symbolName)
+    && ranges.some((range) => range.startLine <= endLine(node) && range.endLine >= node.startPosition.row + 1));
   return affected.filter((definition) => !affected.some((outer) => outer !== definition
     && outer.displayNode.startIndex <= definition.displayNode.startIndex
     && outer.displayNode.endIndex >= definition.displayNode.endIndex

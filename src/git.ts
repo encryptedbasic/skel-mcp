@@ -28,6 +28,10 @@ type GitConfig = ReadonlyArray<readonly [key: string, value: string]>;
 export interface SmartDiffOptions {
   /** `changes` returns changed source lines with AST labels instead of full bodies. */
   view?: 'full' | 'changes';
+  /** An exact tracked file path relative to the workspace, including deleted files. */
+  file?: string;
+  /** A simple or qualified name for an affected function, method, or class. */
+  symbol?: string;
 }
 
 async function findGit(): Promise<string> {
@@ -121,6 +125,32 @@ async function resolveChangedFile(root: string, filePath: string): Promise<strin
   }
 }
 
+async function resolveDiffTarget(root: string, file: string): Promise<string> {
+  if (!file.trim()) throw new Error('file required');
+  const absolute = path.resolve(root, file);
+  const relative = path.relative(root, absolute);
+  const parts = relative.split(path.sep);
+  if (!relative || path.isAbsolute(relative) || parts.some((part) => part === '..'
+      || part.toLowerCase() === '.git' || (process.platform === 'win32' && part.includes(':')))) {
+    throw new Error('Diff file must be inside the workspace, outside Git metadata.');
+  }
+
+  // The index can supply a deleted file, but a surviving path must not traverse links.
+  let component = root;
+  try {
+    for (const part of parts) {
+      component = path.join(component, part);
+      if ((await lstat(component)).isSymbolicLink()) {
+        throw new Error('Git changes to symbolic links are not analyzed.');
+      }
+    }
+    return await resolveWorkspaceFile(absolute, root);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return absolute;
+  }
+}
+
 function parseHunks(patch: string): Hunk[] {
   return [...patch.matchAll(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/gm)]
     .map((match) => ({
@@ -173,10 +203,11 @@ function changedLines(
   parsed: Awaited<ReturnType<typeof parseSource>> | undefined,
   start: number,
   count: number,
+  symbol?: string,
 ): { text: string; labels: string[] } | undefined {
   if (!parsed || count === 0) return undefined;
   const end = start + count - 1;
-  const labels = getEnclosingSymbols(parsed, [{ startLine: start, endLine: end }])
+  const labels = getEnclosingSymbols(parsed, [{ startLine: start, endLine: end }], symbol)
     .map((symbol) => `${symbol.kind} ${symbol.name}`);
   const source = parsed.content.split(/\r?\n/).slice(start - 1, end).join('\n');
   const location = start === end ? `L${start}` : `L${start}-${end}`;
@@ -189,13 +220,17 @@ function compactChanges(
   hunks: Hunk[],
   previous: Awaited<ReturnType<typeof parseSource>> | undefined,
   currentChanges: Array<ReturnType<typeof changedLines>>,
-): string {
-  const changes = hunks.map((hunk, index) => {
-    const old = changedLines('old', previous, hunk.oldStart, hunk.oldCount);
+  symbol?: string,
+): string | undefined {
+  const changes = hunks.flatMap((hunk, index) => {
+    const old = changedLines('old', previous, hunk.oldStart, hunk.oldCount, symbol);
     const next = currentChanges[index];
     const labels = [...new Set([...(old?.labels ?? []), ...(next?.labels ?? [])])];
+    // Keep the complete old/new pair for a matching hunk, including replacements.
+    if (symbol !== undefined && labels.length === 0) return [];
     return [labels.join(', ') || 'module', old?.text, next?.text].filter(Boolean).join('\n');
   });
+  if (changes.length === 0) return undefined;
   return `${JSON.stringify(filePath)}\n${changes.join('\n\n')}`;
 }
 
@@ -208,29 +243,36 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
   // realpath also expands Windows 8.3 names, which otherwise produce
   // an incorrect relative path against Git's expanded repository path.
   const absoluteCwd = await realpath(path.resolve(cwd));
+  const target = options.file === undefined ? undefined : await resolveDiffTarget(absoluteCwd, options.file);
+  if (options.symbol !== undefined && !options.symbol.trim()) throw new Error('symbol required');
   const executable = await findGit();
   // Removing one final newline preserves legal leading/trailing spaces in repository paths.
   const repository = await realpath((await git(executable, absoluteCwd, ['rev-parse', '--show-toplevel'])).replace(/\r?\n$/, ''));
   const config = await disableGitFilters(executable, repository);
   const inspect = (args: string[]): Promise<string> => git(executable, repository, args, config);
-  const relativeDirectory = path.relative(repository, absoluteCwd).split(path.sep).join('/') || '.';
+  const scope = path.relative(repository, target ?? absoluteCwd).split(path.sep).join('/') || '.';
   const diffOptions = [
     '--no-ext-diff', '--no-textconv', '--no-color', '--no-renames',
     '--no-relative', '--ignore-submodules=all', '--no-indent-heuristic',
   ];
   const raw = (await inspect([
-    'diff', ...diffOptions, '--raw', '-z', '--', relativeDirectory,
+    'diff', ...diffOptions, '--raw', '-z', '--', scope,
   ])).split('\0');
 
-  if (raw.length === 1 && !raw[0]) return 'No unstaged changes in tracked files under the current directory.';
+  const noMatch = options.file !== undefined || options.symbol !== undefined
+    ? 'No unstaged changes matched the requested diff scope.'
+    : 'No unstaged changes in tracked files under the current directory.';
+  if (raw.length === 1 && !raw[0]) return noMatch;
 
   const sections: string[] = [];
   for (let entry = 0; entry + 1 < raw.length; entry += 2) {
     const filePath = raw[entry + 1]!;
     const modes = /^:(\d{6}) (\d{6}) /.exec(raw[entry]!);
     if (!modes || !filePath) throw new Error('Git returned an unrecognized diff entry.');
+    // Git pathspecs can include children of a deleted path that was a directory.
+    if (target && filePath !== scope) continue;
     if (!isSupportedFile(filePath)) {
-      sections.push(`## ${JSON.stringify(filePath)}\nSkipped: unsupported language.`);
+      if (options.symbol === undefined) sections.push(`## ${JSON.stringify(filePath)}\nSkipped: unsupported language.`);
       continue;
     }
     const isRegular = (mode: string): boolean => mode === '000000' || mode.startsWith('100');
@@ -247,7 +289,7 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
       ]);
       const hunks = parseHunks(patch);
       if (hunks.length === 0) {
-        sections.push(`## ${JSON.stringify(filePath)}\nNo text hunks (binary file or metadata-only change).`);
+        if (options.symbol === undefined) sections.push(`## ${JSON.stringify(filePath)}\nNo text hunks (binary file or metadata-only change).`);
         continue;
       }
 
@@ -260,15 +302,15 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
         // Cache eviction can dispose this tree while Git reads the index. Keep
         // only source text and symbol metadata past the next await.
         if (options.view === 'changes') {
-          currentChanges = hunks.map((hunk) => changedLines('new', current, hunk.newStart, hunk.newCount));
+          currentChanges = hunks.map((hunk) => changedLines('new', current, hunk.newStart, hunk.newCount, options.symbol));
         } else {
           const additions = hunks.filter((hunk) => hunk.newCount > 0).map((hunk) => ({
             startLine: hunk.newStart,
             endLine: hunk.newStart + hunk.newCount - 1,
           }));
-          addedSymbols = getEnclosingSymbols(current, additions);
+          addedSymbols = getEnclosingSymbols(current, additions, options.symbol);
           if (removals.length > 0) {
-            currentSymbols = getEnclosingSymbols(current, [{ startLine: 1, endLine: Number.MAX_SAFE_INTEGER }]);
+            currentSymbols = getEnclosingSymbols(current, [{ startLine: 1, endLine: Number.MAX_SAFE_INTEGER }], options.symbol);
           }
         }
       }
@@ -277,7 +319,8 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
         const previous = removals.length > 0
           ? await parseSource(absoluteFile, await inspect(['cat-file', 'blob', `:${filePath}`]))
           : undefined;
-        sections.push(compactChanges(filePath, hunks, previous, currentChanges));
+        const changes = compactChanges(filePath, hunks, previous, currentChanges, options.symbol);
+        if (changes !== undefined) sections.push(changes);
         continue;
       }
 
@@ -298,7 +341,7 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
           startLine: hunk.oldStart,
           endLine: hunk.oldStart + hunk.oldCount - 1,
         }));
-        const previousSymbols = getEnclosingSymbols(previous, oldRanges);
+        const previousSymbols = getEnclosingSymbols(previous, oldRanges, options.symbol);
         const matchedOld = new Set<SymbolMatch>();
         const matchedCurrent = new Set<SymbolMatch>();
 
@@ -337,6 +380,7 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
         return `### ${symbol.kind} ${JSON.stringify(symbol.name)} (${version}, lines ${symbol.startLine}-${symbol.endLine})\n${codeBlock(symbol.code, filePath)}`;
       });
       if (excerpts.length === 0) {
+        if (options.symbol !== undefined) continue;
         excerpts.push('Changes are outside functions/classes (for example, imports, types, or module-level statements).');
       }
       sections.push(`## ${JSON.stringify(filePath)}\n${excerpts.join('\n\n')}`);
@@ -346,5 +390,5 @@ export async function getSmartDiff(cwd = process.cwd(), options: SmartDiffOption
     }
   }
 
-  return sections.join('\n\n');
+  return sections.join('\n\n') || noMatch;
 }

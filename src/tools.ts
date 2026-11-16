@@ -22,14 +22,16 @@ async function toolResult(action: () => Promise<string>): Promise<CallToolResult
 export async function registerContextTool(server: McpServer): Promise<void> {
   const { getContext } = await import('./context.js');
   server.registerTool('get_context', {
-    description: 'Batch AST reads. outline: signatures or names. symbol: full code with related imports/types. lines: find within a symbol. diff: changed lines or full bodies. Continue with cursor, or use maxTokens:null for all.',
+    description: 'Batch AST reads. outline: signatures/names. symbol: code with imports/types, or explicit returns only. lines: literal match with contextLines. diff: changes/full scoped by file/symbol. Share a top-level file. Use sources:true for file/symbol labels. Continue with cursor or maxTokens:null.',
     inputSchema: {
+      file: filePath.optional(),
       requests: z.array(z.object({
         op: z.enum(['outline', 'symbol', 'lines', 'diff']),
         file: filePath.optional(),
         symbol: z.string().optional(),
         find: z.string().optional(),
-        detail: z.enum(['signatures', 'names', 'full', 'changes']).optional(),
+        detail: z.enum(['signatures', 'names', 'full', 'changes', 'returns']).optional(),
+        contextLines: z.number().int().min(0).max(5).optional(),
         publicOnly: z.boolean().optional(),
         imports: z.enum(['referenced', 'all', 'none']).optional(),
         includeTypes: z.boolean().optional(),
@@ -38,6 +40,7 @@ export async function registerContextTool(server: McpServer): Promise<void> {
       maxTokens: z.number().int().min(128).nullable().optional(),
       cursor: z.string().optional(),
       versions: z.boolean().optional(),
+      sources: z.boolean().optional(),
     },
     annotations,
   }, (input) => toolResult(() => getContext(input, process.cwd())));

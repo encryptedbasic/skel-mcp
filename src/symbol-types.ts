@@ -239,6 +239,10 @@ function references(root: Node, language: Language, declaration?: Declaration): 
   return [...result.values()];
 }
 
+export function pythonTypeReferenceNames(root: Node): string[] {
+  return references(root, 'python').map(({ name }) => name);
+}
+
 interface Closure {
   declarations: Declaration[];
   unresolved: TypeReference[];
@@ -374,7 +378,12 @@ function renderDeclaration(item: Declaration, language: Language, render: TypeRe
   return `${keyword} ${render(item.display)};`;
 }
 
-export async function linkedTypeContext(parsed: ParsedFile, roots: Node[], readers: TypeReaders): Promise<TypeContext> {
+export async function linkedTypeContext(
+  parsed: ParsedFile,
+  roots: Node[],
+  readers: TypeReaders,
+  workspace = process.cwd(),
+): Promise<TypeContext> {
   const closure = closeTypes(parsed, moduleDeclarations(parsed), roots);
   const local = closure.declarations.map((item) => item.display);
   const imports = readers.imports(parsed, [...roots, ...local], false);
@@ -387,7 +396,7 @@ export async function linkedTypeContext(parsed: ParsedFile, roots: Node[], reade
   let root: string;
   let source: string;
   try {
-    root = await realpath(process.cwd());
+    root = await realpath(workspace);
     source = await realpath(parsed.filePath);
     if (!within(root, source)) return result;
   } catch {
